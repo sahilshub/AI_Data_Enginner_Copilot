@@ -35,6 +35,13 @@ class Settings(BaseSettings):
         description="Network port the server listens on."
     )
 
+    # Database Configuration
+    DATABASE_URL: str = Field(
+        default="postgresql://postgres:postgres@localhost:5432/copilot_db",
+        description="PostgreSQL connection string (SQLAlchemy format)."
+    )
+
+
     # Pydantic Settings Configuration (v2)
     # Reads environment variables from a local `.env` file if it exists.
     model_config = SettingsConfigDict(
