@@ -7,6 +7,12 @@ from app.schemas.connection_schema import (
     ConnectionTestResponse,
 )
 from app.schemas.schema_response import TableResponse, ColumnResponse, TableDetailResponse
+from app.schemas.metadata_schema import (
+    StoredColumnResponse,
+    StoredTableResponse,
+    StoredTableDetailResponse,
+    SyncResponse,
+)
 
 __all__ = [
     "HealthResponse",
@@ -18,4 +24,8 @@ __all__ = [
     "TableResponse",
     "ColumnResponse",
     "TableDetailResponse",
+    "StoredColumnResponse",
+    "StoredTableResponse",
+    "StoredTableDetailResponse",
+    "SyncResponse",
 ]

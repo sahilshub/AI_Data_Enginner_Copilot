@@ -35,23 +35,32 @@ class SchemaRepository:
 
     def get_columns(self, table_name: str) -> List[Dict[str, Any]]:
         """
-        Queries information_schema.columns to retrieve column names and data types
-        for a specific table.
+        Queries information_schema.columns to retrieve column names, data types,
+        and nullability for a specific table.
 
         Args:
             table_name: The name of the table to inspect.
 
         Returns:
-            A list of dicts, each with 'name' and 'data_type' keys.
+            A list of dicts with 'name', 'data_type', and 'is_nullable' keys.
         """
         query = text("""
             SELECT column_name,
-                   data_type
+                   data_type,
+                   is_nullable
             FROM information_schema.columns
             WHERE table_schema = 'public'
-              AND table_name = :table_name
+              AND table_name   = :table_name
             ORDER BY ordinal_position
         """)
         with self.engine.connect() as conn:
             rows = conn.execute(query, {"table_name": table_name}).fetchall()
-        return [{"name": row[0], "data_type": row[1]} for row in rows]
+        return [
+            {
+                "name": row[0],
+                "data_type": row[1],
+                # information_schema returns 'YES' or 'NO' as a string
+                "is_nullable": row[2].upper() == "YES",
+            }
+            for row in rows
+        ]
