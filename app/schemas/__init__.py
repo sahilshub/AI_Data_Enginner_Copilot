@@ -4,8 +4,9 @@ from app.schemas.connection_schema import (
     ConnectionCreate,
     ConnectionResponse,
     ConnectionTest,
-    ConnectionTestResponse
+    ConnectionTestResponse,
 )
+from app.schemas.schema_response import TableResponse, ColumnResponse, TableDetailResponse
 
 __all__ = [
     "HealthResponse",
@@ -13,5 +14,8 @@ __all__ = [
     "ConnectionCreate",
     "ConnectionResponse",
     "ConnectionTest",
-    "ConnectionTestResponse"
+    "ConnectionTestResponse",
+    "TableResponse",
+    "ColumnResponse",
+    "TableDetailResponse",
 ]

@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.api.health import router as health_router
 from app.api.connections import router as connections_router
+from app.api.schema import router as schema_router
 from app.core.config import settings
 
 # Initialize the FastAPI application with metadata loaded from configuration settings
@@ -15,6 +16,7 @@ app = FastAPI(
 # Register endpoints from different domains/controllers
 app.include_router(health_router)
 app.include_router(connections_router)
+app.include_router(schema_router)
 
 @app.get("/", tags=["Root"])
 def read_root():
