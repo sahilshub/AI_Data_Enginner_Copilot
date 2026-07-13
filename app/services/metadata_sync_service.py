@@ -58,7 +58,9 @@ class MetadataSyncService:
     # SYNC
     # ------------------------------------------------------------------
 
-    def sync_connection_metadata(self, connection_id: int) -> SyncResponse:
+    def sync_connection_metadata(
+        self, connection_id: int, schema_name: str = "public"
+    ) -> SyncResponse:
         """
         Full metadata synchronization for a connection:
 
@@ -76,7 +78,7 @@ class MetadataSyncService:
         schema_repo = SchemaRepository(target_engine)
 
         try:
-            raw_tables = schema_repo.get_tables()
+            raw_tables = schema_repo.get_tables(schema_name)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -90,15 +92,16 @@ class MetadataSyncService:
         for raw_table in raw_tables:
             table_name = raw_table["table_name"]
 
-            # Persist table record and get its new id (flush, not commit yet)
+            # Persist table record, storing the actual schema_name
             table_record = self.meta_repo.save_table(
                 connection_id=connection_id,
                 table_name=table_name,
+                schema_name=schema_name,
             )
 
             # Discover and persist columns for this table
             try:
-                raw_columns = schema_repo.get_columns(table_name)
+                raw_columns = schema_repo.get_columns(table_name, schema_name)
             except Exception:
                 raw_columns = []  # Non-fatal: skip columns for this table
 

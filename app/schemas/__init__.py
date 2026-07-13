@@ -13,6 +13,11 @@ from app.schemas.metadata_schema import (
     StoredTableDetailResponse,
     SyncResponse,
 )
+from app.schemas.relationship_schema import (
+    RelationshipResponse,
+    TableRelationshipResponse,
+    DiscoverRelationshipsResponse,
+)
 
 __all__ = [
     "HealthResponse",
@@ -28,4 +33,7 @@ __all__ = [
     "StoredTableResponse",
     "StoredTableDetailResponse",
     "SyncResponse",
+    "RelationshipResponse",
+    "TableRelationshipResponse",
+    "DiscoverRelationshipsResponse",
 ]

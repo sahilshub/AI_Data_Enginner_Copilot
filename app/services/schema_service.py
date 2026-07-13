@@ -56,16 +56,22 @@ class SchemaService:
     # Public service methods
     # ------------------------------------------------------------------
 
-    def get_tables(self, connection_id: int) -> List[TableResponse]:
+    def get_tables(
+        self, connection_id: int, schema_name: str = "public"
+    ) -> List[TableResponse]:
         """
-        Returns all user-defined tables in the public schema of the
+        Returns all user-defined tables in the specified schema of the
         target database identified by connection_id.
+
+        Args:
+            connection_id: ID of the saved connection record.
+            schema_name:   PostgreSQL schema to inspect. Defaults to 'public'.
         """
         engine = self._get_engine_for_connection(connection_id)
         repo = SchemaRepository(engine)
 
         try:
-            raw = repo.get_tables()
+            raw = repo.get_tables(schema_name)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -75,17 +81,22 @@ class SchemaService:
         return [TableResponse(table_name=row["table_name"]) for row in raw]
 
     def get_table_details(
-        self, connection_id: int, table_name: str
+        self, connection_id: int, table_name: str, schema_name: str = "public"
     ) -> TableDetailResponse:
         """
         Returns full column metadata (name, data_type) for a single table
-        in the target database.
+        in the specified schema of the target database.
+
+        Args:
+            connection_id: ID of the saved connection record.
+            table_name:    Name of the table to inspect.
+            schema_name:   PostgreSQL schema containing the table. Defaults to 'public'.
         """
         engine = self._get_engine_for_connection(connection_id)
         repo = SchemaRepository(engine)
 
         try:
-            raw_columns = repo.get_columns(table_name)
+            raw_columns = repo.get_columns(table_name, schema_name)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -95,7 +106,7 @@ class SchemaService:
         if not raw_columns:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Table '{table_name}' not found in the target database."
+                detail=f"Table '{table_name}' not found in schema '{schema_name}'."
             )
 
         columns = [

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -29,10 +29,14 @@ router = APIRouter(
 )
 def sync_metadata(
     connection_id: int,
+    schema_name: str = Query(
+        "public",
+        description="PostgreSQL schema to sync. Use for non-default schemas like 'analytics' or 'staging'."
+    ),
     db: Session = Depends(get_db),
 ) -> SyncResponse:
     service = MetadataSyncService(db)
-    return service.sync_connection_metadata(connection_id)
+    return service.sync_connection_metadata(connection_id, schema_name)
 
 
 @router.get(
