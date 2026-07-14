@@ -9,11 +9,11 @@ class Settings(BaseSettings):
     """
     # Application Configuration
     PROJECT_NAME: str = Field(
-        default="AI Data Engineering Copilot API",
+        default="AI Data Engineering Copilot",
         description="The name of the FastAPI application, printed in logs and docs."
     )
     PROJECT_DESCRIPTION: str = Field(
-        default="Foundational backend API for the AI Data Engineering Copilot.",
+        default="Backend API for connecting to PostgreSQL databases, discovering their schemas, and exploring tables, columns, and relationships through a searchable metadata catalog.",
         description="A brief summary of what the backend API handles."
     )
     VERSION: str = Field(

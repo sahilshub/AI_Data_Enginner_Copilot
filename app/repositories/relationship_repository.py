@@ -101,9 +101,24 @@ class RelationshipRepository:
         Returns:
             A list of dicts with keys: source_table, source_column,
             target_table, target_column.
+
+        Note:
+            `constraint_column_usage` is joined by matching each source
+            column's `position_in_unique_constraint` to the referenced
+            column's `ordinal_position` (via `referential_constraints`).
+            Joining only on `constraint_name`, as a naive query would,
+            produces a cross join for composite foreign keys — e.g. a
+            2-column FK referencing a 2-column key yields 4 mismatched
+            row pairs instead of 2 correctly paired ones.
+
+            `SELECT DISTINCT` collapses cases where multiple separate FK
+            constraints resolve to the same (source_table, source_column,
+            target_table, target_column) tuple — e.g. inherited/partitioned
+            tables that each declare their own copy of the same logical FK.
+            The catalog only stores one row per relationship regardless.
         """
         query = text("""
-            SELECT
+            SELECT DISTINCT
                 kcu.table_name  AS source_table,
                 kcu.column_name AS source_column,
                 ccu.table_name  AS target_table,
@@ -113,9 +128,13 @@ class RelationshipRepository:
                 JOIN information_schema.key_column_usage AS kcu
                   ON tc.constraint_name = kcu.constraint_name
                  AND tc.table_schema    = kcu.table_schema
-                JOIN information_schema.constraint_column_usage AS ccu
-                  ON ccu.constraint_name = tc.constraint_name
-                 AND ccu.table_schema   = tc.table_schema
+                JOIN information_schema.referential_constraints AS rc
+                  ON tc.constraint_name = rc.constraint_name
+                 AND tc.table_schema    = rc.constraint_schema
+                JOIN information_schema.key_column_usage AS ccu
+                  ON rc.unique_constraint_name   = ccu.constraint_name
+                 AND rc.unique_constraint_schema = ccu.table_schema
+                 AND kcu.position_in_unique_constraint = ccu.ordinal_position
             WHERE tc.constraint_type = 'FOREIGN KEY'
               AND tc.table_schema    = :schema_name
         """)

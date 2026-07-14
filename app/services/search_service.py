@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import List, Optional
 
 from app.repositories.search_repository import SearchRepository
 from app.schemas.search_schema import (
@@ -27,6 +27,55 @@ class SearchService:
         self.db = db
         self.repo = SearchRepository(db)
 
+    def search_tables(
+        self, query: str, connection_id: Optional[int] = None
+    ) -> List[TableSearchResult]:
+        """Searches only tables in the local metadata catalog."""
+        raw_tables = self.repo.search_tables(query, connection_id)
+        return [
+            TableSearchResult(
+                connection_id=t.connection_id,
+                table_name=t.table_name,
+                schema_name=t.schema_name,
+            )
+            for t in raw_tables
+        ]
+
+    def search_columns(
+        self, query: str, connection_id: Optional[int] = None
+    ) -> List[ColumnSearchResult]:
+        """Searches only columns in the local metadata catalog."""
+        raw_columns = self.repo.search_columns(query, connection_id)
+        return [
+            ColumnSearchResult(
+                # Navigate the ORM relationship to get the parent table fields
+                connection_id=c.table.connection_id,
+                table_name=c.table.table_name,
+                schema_name=c.table.schema_name,
+                column_name=c.column_name,
+                data_type=c.data_type,
+                is_nullable=c.is_nullable,
+            )
+            for c in raw_columns
+        ]
+
+    def search_relationships(
+        self, query: str, connection_id: Optional[int] = None
+    ) -> List[RelationshipSearchResult]:
+        """Searches only relationships in the local metadata catalog."""
+        raw_relationships = self.repo.search_relationships(query, connection_id)
+        return [
+            RelationshipSearchResult(
+                connection_id=r.connection_id,
+                source_table=r.source_table,
+                source_column=r.source_column,
+                target_table=r.target_table,
+                target_column=r.target_column,
+                relationship_type=r.relationship_type,
+            )
+            for r in raw_relationships
+        ]
+
     def search(
         self, query: str, connection_id: Optional[int] = None
     ) -> SearchResponse:
@@ -43,45 +92,9 @@ class SearchService:
             A SearchResponse containing matched tables, columns, and relationships,
             plus a total_results count.
         """
-        # Execute searches in parallel against each entity type
-        raw_tables = self.repo.search_tables(query, connection_id)
-        raw_columns = self.repo.search_columns(query, connection_id)
-        raw_relationships = self.repo.search_relationships(query, connection_id)
-
-        # Map ORM records to Pydantic response models
-        tables = [
-            TableSearchResult(
-                connection_id=t.connection_id,
-                table_name=t.table_name,
-                schema_name=t.schema_name,
-            )
-            for t in raw_tables
-        ]
-
-        columns = [
-            ColumnSearchResult(
-                # Navigate the ORM relationship to get the parent table fields
-                connection_id=c.table.connection_id,
-                table_name=c.table.table_name,
-                schema_name=c.table.schema_name,
-                column_name=c.column_name,
-                data_type=c.data_type,
-                is_nullable=c.is_nullable,
-            )
-            for c in raw_columns
-        ]
-
-        relationships = [
-            RelationshipSearchResult(
-                connection_id=r.connection_id,
-                source_table=r.source_table,
-                source_column=r.source_column,
-                target_table=r.target_table,
-                target_column=r.target_column,
-                relationship_type=r.relationship_type,
-            )
-            for r in raw_relationships
-        ]
+        tables = self.search_tables(query, connection_id)
+        columns = self.search_columns(query, connection_id)
+        relationships = self.search_relationships(query, connection_id)
 
         return SearchResponse(
             query=query,
