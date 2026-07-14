@@ -65,13 +65,18 @@ def get_stored_tables(
     summary="Get stored table with columns",
     description=(
         "Returns a stored table record including all column details "
-        "from the Copilot's metadata catalog. No live database query."
+        "from the Copilot's metadata catalog. No live database query. "
+        "Use `schema_name` if the table was synced from a non-default schema."
     ),
 )
 def get_stored_table_detail(
     connection_id: int,
     table_name: str,
+    schema_name: str = Query(
+        "public",
+        description="PostgreSQL schema the table was synced from."
+    ),
     db: Session = Depends(get_db),
 ) -> StoredTableDetailResponse:
     service = MetadataSyncService(db)
-    return service.get_stored_table_detail(connection_id, table_name)
+    return service.get_stored_table_detail(connection_id, table_name, schema_name)

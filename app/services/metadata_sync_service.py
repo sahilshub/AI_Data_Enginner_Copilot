@@ -142,19 +142,20 @@ class MetadataSyncService:
         return [StoredTableResponse.model_validate(r) for r in records]
 
     def get_stored_table_detail(
-        self, connection_id: int, table_name: str
+        self, connection_id: int, table_name: str, schema_name: str = "public"
     ) -> StoredTableDetailResponse:
         """
         Returns a stored table record with all its column details.
         Serves from Copilot DB — no network call to target database.
         """
-        table_record = self.meta_repo.get_table_by_name(connection_id, table_name)
+        table_record = self.meta_repo.get_table_by_name(connection_id, table_name, schema_name)
         if not table_record:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=(
-                    f"No stored metadata found for table '{table_name}' "
-                    f"on connection {connection_id}. Run POST /metadata/sync first."
+                    f"No stored metadata found for table '{table_name}' in schema "
+                    f"'{schema_name}' on connection {connection_id}. Run POST /metadata/sync "
+                    f"first, or pass the correct `schema_name` query parameter."
                 )
             )
 
