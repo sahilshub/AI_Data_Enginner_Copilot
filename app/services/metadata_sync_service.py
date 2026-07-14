@@ -12,6 +12,9 @@ from app.schemas.metadata_schema import (
     StoredTableDetailResponse,
     StoredColumnResponse,
 )
+from app.core.logging import get_logger
+
+logger = get_logger("app.metadata_sync")
 
 
 class MetadataSyncService:
@@ -74,12 +77,18 @@ class MetadataSyncService:
         Replace-on-sync is the simplest correct strategy: the entire snapshot
         is treated as atomic. Future steps can introduce incremental diffing.
         """
+        logger.info("metadata_sync_started", extra={"connection_id": connection_id, "schema_name": schema_name})
+
         target_engine = self._get_target_engine(connection_id)
         schema_repo = SchemaRepository(target_engine)
 
         try:
             raw_tables = schema_repo.get_tables(schema_name)
         except Exception as e:
+            logger.error(
+                "metadata_sync_failed",
+                extra={"connection_id": connection_id, "schema_name": schema_name, "error": str(e)},
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Failed to read tables from target database: {str(e)}"
@@ -117,6 +126,11 @@ class MetadataSyncService:
 
         # One commit for the entire sync — atomicity
         self.meta_repo.commit()
+
+        logger.info(
+            "metadata_sync_completed",
+            extra={"connection_id": connection_id, "tables_synced": tables_synced},
+        )
 
         return SyncResponse(
             message="Metadata synchronized successfully.",

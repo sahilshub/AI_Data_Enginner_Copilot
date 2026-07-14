@@ -8,6 +8,12 @@ from app.api.search import router as search_router
 from app.api.documentation import router as documentation_router
 from app.api.metadata_refresh import router as metadata_refresh_router
 from app.core.config import settings
+from app.core.logging import configure_logging, get_logger
+from app.core.error_handlers import register_exception_handlers
+from app.middleware.request_logging import RequestLoggingMiddleware
+
+configure_logging()
+logger = get_logger("app.startup")
 
 # Initialize the FastAPI application with metadata loaded from configuration settings
 app = FastAPI(
@@ -17,6 +23,11 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+app.add_middleware(RequestLoggingMiddleware)
+register_exception_handlers(app)
+
+logger.info("application_started", extra={"environment": settings.ENVIRONMENT})
 
 # Register endpoints from different domains/controllers
 app.include_router(health_router)

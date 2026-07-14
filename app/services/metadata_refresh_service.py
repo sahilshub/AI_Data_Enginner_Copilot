@@ -15,6 +15,10 @@ from app.schemas.metadata_change_schema import (
     RefreshResponse,
     RefreshStatusResponse,
 )
+from app.core.logging import get_logger
+from app.core.monitoring import metrics
+
+logger = get_logger("app.metadata_refresh")
 
 RelationshipKey = Tuple[str, str, str, str]
 
@@ -180,14 +184,30 @@ class MetadataRefreshService:
         Detects changes against the live target database, records them,
         then updates the catalog (tables/columns/relationships) to match.
         """
-        changes = self.detect_changes(connection_id, schema_name)
+        logger.info("metadata_refresh_started", extra={"connection_id": connection_id, "schema_name": schema_name})
 
-        if changes:
-            self.change_repo.save_changes(connection_id, changes)
+        try:
+            changes = self.detect_changes(connection_id, schema_name)
 
-        # Catalog update is delegated — see class docstring.
-        MetadataSyncService(self.db).sync_connection_metadata(connection_id, schema_name)
-        RelationshipService(self.db).discover_relationships(connection_id, schema_name)
+            if changes:
+                self.change_repo.save_changes(connection_id, changes)
+
+            # Catalog update is delegated — see class docstring.
+            MetadataSyncService(self.db).sync_connection_metadata(connection_id, schema_name)
+            RelationshipService(self.db).discover_relationships(connection_id, schema_name)
+        except Exception as e:
+            metrics.record_metadata_refresh(success=False)
+            logger.error(
+                "metadata_refresh_failed",
+                extra={"connection_id": connection_id, "schema_name": schema_name, "error": str(e)},
+            )
+            raise
+
+        metrics.record_metadata_refresh(success=True)
+        logger.info(
+            "metadata_refresh_completed",
+            extra={"connection_id": connection_id, "changes_detected": len(changes)},
+        )
 
         return RefreshResponse(
             message="Metadata refreshed successfully.",
