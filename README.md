@@ -1,4 +1,4 @@
-# AI Data Engineering Copilot - Backend Foundation
+# AI Data Engineering Copilot
 
 Welcome to the backend service of the **AI Data Engineering Copilot** project. This project serves as a learning platform for software engineering and AI engineering, architected to grow into a multi-layered, robust backend system.
 
