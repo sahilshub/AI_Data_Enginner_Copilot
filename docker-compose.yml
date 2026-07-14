@@ -27,15 +27,38 @@ services:
       - PORT=8000
       - ENVIRONMENT=development
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/copilot_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
 
     # Command to run uvicorn with reload enabled for development hot-reloading
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-    # Ensure database is up before starting api service
+    # Ensure database and broker are up before starting api service
     depends_on:
       - db
+      - redis
 
     # Restart policy
+    restart: unless-stopped
+
+  worker:
+    # Same image as api — just runs a Celery worker instead of uvicorn.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./app:/workspace/app
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/copilot_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    command: celery -A app.core.celery_app worker --loglevel=info
+    depends_on:
+      - db
+      - redis
     restart: unless-stopped
 
   db:
@@ -48,6 +71,12 @@ services:
       - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
     restart: always
 
 volumes:

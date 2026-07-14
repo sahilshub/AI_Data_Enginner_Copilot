@@ -184,7 +184,10 @@ Recent job history for a connection.
 # Explicitly Out of Scope (This Step)
 
 * No task queue (Celery/RQ/arq) — noted above as the future upgrade if
-  durability across restarts is ever needed.
+  durability across restarts is ever needed. **Superseded by
+  [step-13.md](step-13.md)**: durability and independent worker scaling were
+  wanted sooner than "future," so this step's job-running mechanism
+  (`BackgroundTasks`) was replaced by Celery + Redis before Phase 2 started.
 * No websocket/SSE push for job completion — polling only.
 * No change to `discover_relationships` (`POST /relationships/discover`) —
   it's a single already-batched query and isn't part of the sync/refresh
@@ -230,32 +233,3 @@ Recent job history for a connection.
 Step 1–10: backend foundation through observability (Phase 1 complete).
 Step 11: multi-source connector abstraction.
 Step 12: batched introspection + background job handling for sync/refresh.
-
----
-
-# What's Next
-
-## Phase 2 – Step 1
-
-### Local LLM Integration (Ollama)
-
-This is the beginning of the AI engineering portion of the project.
-
-You will learn:
-
-* What an LLM actually is
-* How Ollama works
-* Model selection
-* Context windows
-* Prompt construction
-* Local inference
-
-First feature:
-
-Ask:
-
-"Which table stores customer information?"
-
-The LLM will answer using metadata from your platform.
-
-This will be your first end-to-end AI feature.

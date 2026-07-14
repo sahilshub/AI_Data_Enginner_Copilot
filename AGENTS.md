@@ -298,6 +298,17 @@ Never violate these boundaries.
     migrations before applying — autogenerate can miss things like check
     constraints or renamed columns.
 
+* **Celery + Redis** run `POST /metadata/sync` and `POST /metadata/refresh`
+  as async jobs (see `docs/phase-1/step-13.md`). A running worker is
+  required for jobs to actually complete — without one, `POST .../sync`
+  returns a `job_id` that queues but never progresses past `pending`.
+  * `docker run -d -p 6379:6379 redis:7-alpine` (or `docker compose up -d redis`)
+  * `celery -A app.core.celery_app worker --loglevel=info` (add `--pool=solo`
+    on Windows)
+  * Job state is a `SyncJob` row in Postgres (`GET /connections/{id}/jobs[/{job_id}]`),
+    not just Celery's Redis result backend — the backend is TTL-based and
+    can be evicted, Postgres is the durable source of truth.
+
 ---
 
 # Engineering Guardrails (Lessons Learned)

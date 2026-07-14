@@ -86,7 +86,21 @@ environment (dev/staging/prod) — never reuse one.
 alembic upgrade head
 ```
 
-### 6. Run the Server
+### 6. Start Redis and a Celery Worker
+`POST /metadata/sync` and `POST /metadata/refresh` run as async jobs via
+Celery, queued on Redis (see `docs/phase-1/step-13.md`). Start Redis:
+```bash
+docker run -d -p 6379:6379 redis:7-alpine
+```
+Then start a worker in its own terminal:
+```bash
+celery -A app.core.celery_app worker --loglevel=info
+```
+(On Windows, add `--pool=solo`.) Without a running worker, sync/refresh jobs
+will queue but never complete — poll `GET /connections/{id}/jobs/{job_id}`
+to check.
+
+### 7. Run the Server
 Start the development server using Uvicorn:
 ```bash
 uvicorn app.main:app --reload
@@ -96,3 +110,9 @@ The application will be running on `http://127.0.0.1:8000`.
 - **Interactive Documentation**: `http://127.0.0.1:8000/docs`
 - **Health Check Endpoint**: `http://127.0.0.1:8000/health` (add `/details` for a dependency check, e.g. catalog DB connectivity)
 - **Metrics**: `http://127.0.0.1:8000/metrics` (in-memory request/refresh counters)
+- **Async Jobs**: `POST /connections/{id}/metadata/sync` and `/refresh` return a `job_id` immediately — poll `GET /connections/{id}/jobs/{job_id}` for status/results.
+
+Or start everything (API, worker, Postgres, Redis) via Docker Compose:
+```bash
+docker compose up -d
+```

@@ -7,6 +7,7 @@ from app.api.relationship import router as relationship_router
 from app.api.search import router as search_router
 from app.api.documentation import router as documentation_router
 from app.api.metadata_refresh import router as metadata_refresh_router
+from app.api.jobs import router as jobs_router
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
 from app.core.error_handlers import register_exception_handlers
@@ -38,6 +39,7 @@ app.include_router(relationship_router)
 app.include_router(search_router)
 app.include_router(documentation_router)
 app.include_router(metadata_refresh_router)
+app.include_router(jobs_router)
 
 @app.get("/", tags=["Root"])
 def read_root():

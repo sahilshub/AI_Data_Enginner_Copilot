@@ -52,6 +52,16 @@ class Settings(BaseSettings):
         )
     )
 
+    # Celery / Redis (async sync & refresh jobs — see app/core/celery_app.py)
+    CELERY_BROKER_URL: str = Field(
+        default="redis://localhost:6379/0",
+        description="Redis URL Celery uses to queue tasks."
+    )
+    CELERY_RESULT_BACKEND: str = Field(
+        default="redis://localhost:6379/0",
+        description="Redis URL Celery uses to store task results. Same Redis as the broker is fine at this scale."
+    )
+
 
     # Pydantic Settings Configuration (v2)
     # Reads environment variables from a local `.env` file if it exists.
