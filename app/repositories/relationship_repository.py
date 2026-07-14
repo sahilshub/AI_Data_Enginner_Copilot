@@ -26,31 +26,45 @@ class RelationshipRepository:
             .all()
         )
 
-    def get_by_table(self, connection_id: int, table_name: str) -> List[SchemaRelationship]:
+    def get_by_table(
+        self, connection_id: int, table_name: str, schema_name: str = "public"
+    ) -> List[SchemaRelationship]:
         """
-        Retrieves all stored relationship metadata where the source_table is the requested table.
+        Retrieves all stored relationship metadata where the source_table is
+        the requested table, scoped to a schema (tables of the same name can
+        exist in different schemas on one connection).
         """
         return (
             self.db.query(SchemaRelationship)
             .filter(
                 SchemaRelationship.connection_id == connection_id,
-                SchemaRelationship.source_table == table_name
+                SchemaRelationship.source_table == table_name,
+                SchemaRelationship.source_schema == schema_name,
             )
             .all()
         )
 
-    def get_by_table_either_direction(self, connection_id: int, table_name: str) -> List[SchemaRelationship]:
+    def get_by_table_either_direction(
+        self, connection_id: int, table_name: str, schema_name: str = "public"
+    ) -> List[SchemaRelationship]:
         """
         Retrieves all stored relationships where the table participates as either
         the source or the target — used for table documentation, where both
-        parent and child links are relevant.
+        parent and child links are relevant. Scoped to a schema for the same
+        reason as get_by_table().
         """
         return (
             self.db.query(SchemaRelationship)
             .filter(
                 SchemaRelationship.connection_id == connection_id,
-                (SchemaRelationship.source_table == table_name)
-                | (SchemaRelationship.target_table == table_name)
+                (
+                    (SchemaRelationship.source_table == table_name)
+                    & (SchemaRelationship.source_schema == schema_name)
+                )
+                | (
+                    (SchemaRelationship.target_table == table_name)
+                    & (SchemaRelationship.target_schema == schema_name)
+                )
             )
             .all()
         )
@@ -74,6 +88,8 @@ class RelationshipRepository:
         source_column: str,
         target_table: str,
         target_column: str,
+        source_schema: str = "public",
+        target_schema: str = "public",
         relationship_type: str = "foreign_key"
     ) -> SchemaRelationship:
         """
@@ -81,8 +97,10 @@ class RelationshipRepository:
         """
         record = SchemaRelationship(
             connection_id=connection_id,
+            source_schema=source_schema,
             source_table=source_table,
             source_column=source_column,
+            target_schema=target_schema,
             target_table=target_table,
             target_column=target_column,
             relationship_type=relationship_type
@@ -115,8 +133,10 @@ class RelationshipRepository:
                          introspect custom schemas.
 
         Returns:
-            A list of dicts with keys: source_table, source_column,
-            target_table, target_column.
+            A list of dicts with keys: source_schema, source_table, source_column,
+            target_schema, target_table, target_column. target_schema can differ
+            from source_schema/schema_name for a cross-schema foreign key —
+            it's read from the referenced constraint, not assumed to match.
 
         Note:
             `constraint_column_usage` is joined by matching each source
@@ -135,8 +155,10 @@ class RelationshipRepository:
         """
         query = text("""
             SELECT DISTINCT
+                kcu.table_schema AS source_schema,
                 kcu.table_name  AS source_table,
                 kcu.column_name AS source_column,
+                ccu.table_schema AS target_schema,
                 ccu.table_name  AS target_table,
                 ccu.column_name AS target_column
             FROM
@@ -159,10 +181,12 @@ class RelationshipRepository:
 
         return [
             {
-                "source_table":  row[0],
-                "source_column": row[1],
-                "target_table":  row[2],
-                "target_column": row[3],
+                "source_schema": row[0],
+                "source_table":  row[1],
+                "source_column": row[2],
+                "target_schema": row[3],
+                "target_table":  row[4],
+                "target_column": row[5],
             }
             for row in rows
         ]

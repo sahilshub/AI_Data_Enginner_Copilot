@@ -26,8 +26,10 @@ class ColumnSearchResult(BaseModel):
 class RelationshipSearchResult(BaseModel):
     """A single relationship matched by a search query."""
     connection_id: int
+    source_schema: str
     source_table: str
     source_column: str
+    target_schema: str
     target_table: str
     target_column: str
     relationship_type: str

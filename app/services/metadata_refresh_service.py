@@ -17,10 +17,11 @@ from app.schemas.metadata_change_schema import (
 )
 from app.core.logging import get_logger
 from app.core.monitoring import metrics
+from app.core.security import decrypt_password
 
 logger = get_logger("app.metadata_refresh")
 
-RelationshipKey = Tuple[str, str, str, str]
+RelationshipKey = Tuple[str, str, str, str, str, str]  # (source_schema, source_table, source_column, target_schema, target_table, target_column)
 
 
 class MetadataRefreshService:
@@ -52,7 +53,7 @@ class MetadataRefreshService:
                 detail=f"Database connection with ID {connection_id} not found."
             )
         url = (
-            f"postgresql+psycopg2://{db_conn.username}:{db_conn.password}"
+            f"postgresql+psycopg2://{db_conn.username}:{decrypt_password(db_conn.password)}"
             f"@{db_conn.host}:{db_conn.port}/{db_conn.database}"
         )
         return create_engine(url, connect_args={"connect_timeout": 5})
@@ -83,7 +84,7 @@ class MetadataRefreshService:
             for table_name, table in before_tables.items()
         }
         before_relationships: Dict[RelationshipKey, None] = {
-            (r.source_table, r.source_column, r.target_table, r.target_column): None
+            (r.source_schema, r.source_table, r.source_column, r.target_schema, r.target_table, r.target_column): None
             for r in self.rel_repo.get_by_connection(connection_id)
         }
 
@@ -104,7 +105,7 @@ class MetadataRefreshService:
             )
         after_tables = set(after_columns.keys())
         after_relationships: Dict[RelationshipKey, None] = {
-            (fk["source_table"], fk["source_column"], fk["target_table"], fk["target_column"]): None
+            (fk["source_schema"], fk["source_table"], fk["source_column"], fk["target_schema"], fk["target_table"], fk["target_column"]): None
             for fk in raw_fks
         }
 
@@ -163,14 +164,14 @@ class MetadataRefreshService:
             changes.append({
                 "change_type": "RELATIONSHIP_ADDED",
                 "object_type": "RELATIONSHIP",
-                "object_name": f"{rel[0]}.{rel[1]} -> {rel[2]}.{rel[3]}",
+                "object_name": f"{rel[0]}.{rel[1]}.{rel[2]} -> {rel[3]}.{rel[4]}.{rel[5]}",
             })
 
         for rel in set(before_relationships) - set(after_relationships):
             changes.append({
                 "change_type": "RELATIONSHIP_REMOVED",
                 "object_type": "RELATIONSHIP",
-                "object_name": f"{rel[0]}.{rel[1]} -> {rel[2]}.{rel[3]}",
+                "object_name": f"{rel[0]}.{rel[1]}.{rel[2]} -> {rel[3]}.{rel[4]}.{rel[5]}",
             })
 
         return changes

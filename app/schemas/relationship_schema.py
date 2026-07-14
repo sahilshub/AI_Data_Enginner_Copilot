@@ -4,8 +4,10 @@ class RelationshipResponse(BaseModel):
     """
     Response schema representing a direct link between a source column and target column.
     """
+    source_schema: str = Field(..., description="PostgreSQL schema containing the source table.")
     source_table: str = Field(..., description="Table containing the foreign key reference.")
     source_column: str = Field(..., description="Column acting as the foreign key.")
+    target_schema: str = Field(..., description="PostgreSQL schema containing the target table.")
     target_table: str = Field(..., description="Table being referenced by the foreign key.")
     target_column: str = Field(..., description="Column in target table being referenced.")
 
@@ -17,6 +19,7 @@ class TableRelationshipResponse(BaseModel):
     """
     Response schema returning relationship connections for a specific table.
     """
+    target_schema: str = Field(..., description="PostgreSQL schema containing the connected table.")
     target_table: str = Field(..., description="The connected table.")
     relationship_type: str = Field(..., description="The type of the relationship link (e.g. foreign_key).")
 

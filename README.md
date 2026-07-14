@@ -65,8 +65,28 @@ source venv/bin/activate
 ```bash
 pip install -r requirements.txt
 ```
+(Or, if you use [uv](https://github.com/astral-sh/uv): `uv sync` — `pyproject.toml` is the source of truth for dependencies.)
 
-### 4. Run the Server
+### 4. Configure Environment Variables
+Copy the example env file and fill in your own values:
+```bash
+cp .env.example .env
+```
+`SECRET_KEY` is **required** — it's the Fernet key used to encrypt registered
+target-database passwords at rest (see `app/core/security.py`). There is no
+insecure default, so the app will fail to start without it. Generate one with:
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+Paste the output into `SECRET_KEY` in `.env`. Use a different key per
+environment (dev/staging/prod) — never reuse one.
+
+### 5. Apply Database Migrations
+```bash
+alembic upgrade head
+```
+
+### 6. Run the Server
 Start the development server using Uvicorn:
 ```bash
 uvicorn app.main:app --reload
@@ -74,4 +94,5 @@ uvicorn app.main:app --reload
 
 The application will be running on `http://127.0.0.1:8000`.
 - **Interactive Documentation**: `http://127.0.0.1:8000/docs`
-- **Health Check Endpoint**: `http://127.0.0.1:8000/health`
+- **Health Check Endpoint**: `http://127.0.0.1:8000/health` (add `/details` for a dependency check, e.g. catalog DB connectivity)
+- **Metrics**: `http://127.0.0.1:8000/metrics` (in-memory request/refresh counters)

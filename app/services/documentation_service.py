@@ -76,7 +76,7 @@ class DocumentationService:
             )
 
         columns = self.meta_repo.get_columns_by_table(table_record.id)
-        relationships = self.rel_repo.get_by_table_either_direction(connection_id, table_name)
+        relationships = self.rel_repo.get_by_table_either_direction(connection_id, table_name, schema_name)
 
         return TableDocumentationResponse(
             table_name=table_record.table_name,

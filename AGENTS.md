@@ -282,6 +282,10 @@ Never violate these boundaries.
     (different projects) — always check `docker ps` and target the right
     container/port before running destructive commands.
 
+* **`SECRET_KEY` is required** (Fernet key encrypting stored target-DB
+  passwords, see `app/core/security.py`) — the app fails to start without it,
+  there is no insecure default. Generate one per environment; see README.md.
+
 * **Alembic** manages all schema migrations for the Copilot's own catalog DB
   (never for target/external databases — those are only ever introspected,
   never migrated).
@@ -312,6 +316,19 @@ Concrete pitfalls hit during this project, kept here so they aren't repeated:
 * Any code that reads live database metadata (schema discovery, relationship
   discovery) should be validated against a real, non-trivial target schema —
   toy schemas with only single-column FKs won't surface these issues.
+* **Table/relationship identity must include schema, not just name.**
+  `schema_tables` always had a `schema_name` column, but `schema_relationships`
+  didn't until it was retrofitted — meaning two tables with the same name in
+  different schemas on one connection would have their relationships silently
+  conflated. Any new metadata entity that identifies a table/column should be
+  schema-qualified from the start, not bolted on later once real multi-schema
+  data exposes the gap.
+* **Stored credentials must be encrypted at rest from the start.** Target-DB
+  passwords in `database_connections` were originally plaintext with just a
+  code comment flagging it as a known gap — encrypting it later required a
+  data migration to re-encrypt existing rows in place. Any new column storing
+  a secret should be encrypted before the first row is ever written, not
+  after.
 
 ---
 

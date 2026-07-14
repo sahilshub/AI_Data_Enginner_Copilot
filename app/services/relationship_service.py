@@ -10,6 +10,7 @@ from app.schemas.relationship_schema import (
     TableRelationshipResponse,
     DiscoverRelationshipsResponse,
 )
+from app.core.security import decrypt_password
 
 class RelationshipService:
     """
@@ -37,7 +38,7 @@ class RelationshipService:
             )
             
         url = (
-            f"postgresql+psycopg2://{db_conn.username}:{db_conn.password}"
+            f"postgresql+psycopg2://{db_conn.username}:{decrypt_password(db_conn.password)}"
             f"@{db_conn.host}:{db_conn.port}/{db_conn.database}"
         )
         return create_engine(url, connect_args={"connect_timeout": 5})
@@ -73,8 +74,10 @@ class RelationshipService:
         for fk in fkeys:
             self.rel_repo.create(
                 connection_id=connection_id,
+                source_schema=fk["source_schema"],
                 source_table=fk["source_table"],
                 source_column=fk["source_column"],
+                target_schema=fk["target_schema"],
                 target_table=fk["target_table"],
                 target_column=fk["target_column"]
             )
@@ -103,7 +106,7 @@ class RelationshipService:
         return [RelationshipResponse.model_validate(r) for r in records]
 
     def get_table_relationships(
-        self, connection_id: int, table_name: str
+        self, connection_id: int, table_name: str, schema_name: str = "public"
     ) -> List[TableRelationshipResponse]:
         """
         Serves recorded connections specific to a table (where it acts as the source/foreign key).
@@ -115,10 +118,11 @@ class RelationshipService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Database connection with ID {connection_id} not found."
             )
-            
-        records = self.rel_repo.get_by_table(connection_id, table_name)
+
+        records = self.rel_repo.get_by_table(connection_id, table_name, schema_name)
         return [
             TableRelationshipResponse(
+                target_schema=r.target_schema,
                 target_table=r.target_table,
                 relationship_type=r.relationship_type
             )

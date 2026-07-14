@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.models.connection import DatabaseConnection
 from app.schemas.connection_schema import ConnectionCreate
+from app.core.security import encrypt_password
 
 class ConnectionRepository:
     """
@@ -32,6 +33,9 @@ class ConnectionRepository:
     def create(self, schema_in: ConnectionCreate) -> DatabaseConnection:
         """
         Creates and persists a new DatabaseConnection database record.
+        The password is encrypted before it ever reaches the database —
+        see app/core/security.py. Callers needing the plaintext password
+        (to build a target-DB connection URL) must decrypt it explicitly.
         """
         db_connection = DatabaseConnection(
             name=schema_in.name,
@@ -39,7 +43,7 @@ class ConnectionRepository:
             host=schema_in.host,
             port=schema_in.port,
             username=schema_in.username,
-            password=schema_in.password,
+            password=encrypt_password(schema_in.password),
             database=schema_in.database
         )
         self.db.add(db_connection)

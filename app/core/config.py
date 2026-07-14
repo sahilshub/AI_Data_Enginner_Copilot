@@ -41,6 +41,17 @@ class Settings(BaseSettings):
         description="PostgreSQL connection string (SQLAlchemy format)."
     )
 
+    # Security
+    SECRET_KEY: str = Field(
+        ...,
+        description=(
+            "Symmetric Fernet key used to encrypt registered target-database "
+            "passwords at rest (see app/core/security.py). Generate one with "
+            "`python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"`. "
+            "Required — there is no insecure default."
+        )
+    )
+
 
     # Pydantic Settings Configuration (v2)
     # Reads environment variables from a local `.env` file if it exists.

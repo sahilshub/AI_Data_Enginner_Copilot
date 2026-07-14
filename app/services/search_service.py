@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Session
+from fastapi import HTTPException, status
 from typing import List, Optional
 
+from app.repositories.connection_repository import ConnectionRepository
 from app.repositories.search_repository import SearchRepository
 from app.schemas.search_schema import (
     SearchResponse,
@@ -26,11 +28,25 @@ class SearchService:
     def __init__(self, db: Session):
         self.db = db
         self.repo = SearchRepository(db)
+        self.conn_repo = ConnectionRepository(db)
+
+    def _validate_connection_filter(self, connection_id: Optional[int]) -> None:
+        """
+        If a connection_id filter is supplied, it must reference a real
+        connection — otherwise the filter silently narrows every search to
+        zero results instead of telling the caller their filter is wrong.
+        """
+        if connection_id is not None and not self.conn_repo.get_by_id(connection_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Database connection with ID {connection_id} not found."
+            )
 
     def search_tables(
         self, query: str, connection_id: Optional[int] = None
     ) -> List[TableSearchResult]:
         """Searches only tables in the local metadata catalog."""
+        self._validate_connection_filter(connection_id)
         raw_tables = self.repo.search_tables(query, connection_id)
         return [
             TableSearchResult(
@@ -45,6 +61,7 @@ class SearchService:
         self, query: str, connection_id: Optional[int] = None
     ) -> List[ColumnSearchResult]:
         """Searches only columns in the local metadata catalog."""
+        self._validate_connection_filter(connection_id)
         raw_columns = self.repo.search_columns(query, connection_id)
         return [
             ColumnSearchResult(
@@ -63,12 +80,15 @@ class SearchService:
         self, query: str, connection_id: Optional[int] = None
     ) -> List[RelationshipSearchResult]:
         """Searches only relationships in the local metadata catalog."""
+        self._validate_connection_filter(connection_id)
         raw_relationships = self.repo.search_relationships(query, connection_id)
         return [
             RelationshipSearchResult(
                 connection_id=r.connection_id,
+                source_schema=r.source_schema,
                 source_table=r.source_table,
                 source_column=r.source_column,
+                target_schema=r.target_schema,
                 target_table=r.target_table,
                 target_column=r.target_column,
                 relationship_type=r.relationship_type,

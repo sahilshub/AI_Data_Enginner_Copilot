@@ -490,22 +490,3 @@ Step 9:
 Metadata refresh and change detection
 
 The platform now understands schemas and keeps that understanding up to date.
-
----
-
-# Next Step
-
-## Phase 1 – Step 10
-
-### Testing Foundation
-
-Before introducing AI, we need confidence that the platform behaves correctly.
-
-Next we'll add:
-
-* Unit tests
-* Integration tests
-* Test database setup
-* CI-ready test structure
-
-This is where the project starts looking like a production-grade engineering system rather than a prototype.

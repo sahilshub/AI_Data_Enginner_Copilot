@@ -17,7 +17,7 @@ class DatabaseConnection(Base):
     host = Column(String, nullable=False)
     port = Column(Integer, nullable=False)
     username = Column(String, nullable=False)
-    password = Column(String, nullable=False)  # Note: Stored as plaintext for simplicity. In production, this must be encrypted!
+    password = Column(String, nullable=False)  # Fernet-encrypted at rest — see app/core/security.py. Never read this column directly; decrypt via decrypt_password().
     database = Column(String, nullable=False)
 
     # Auditing Timestamps

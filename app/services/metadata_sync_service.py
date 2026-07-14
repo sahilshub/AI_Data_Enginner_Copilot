@@ -13,6 +13,7 @@ from app.schemas.metadata_schema import (
     StoredColumnResponse,
 )
 from app.core.logging import get_logger
+from app.core.security import decrypt_password
 
 logger = get_logger("app.metadata_sync")
 
@@ -52,7 +53,7 @@ class MetadataSyncService:
                 detail=f"Database connection with ID {connection_id} not found."
             )
         url = (
-            f"postgresql+psycopg2://{db_conn.username}:{db_conn.password}"
+            f"postgresql+psycopg2://{db_conn.username}:{decrypt_password(db_conn.password)}"
             f"@{db_conn.host}:{db_conn.port}/{db_conn.database}"
         )
         return create_engine(url, connect_args={"connect_timeout": 5})

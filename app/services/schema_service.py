@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from app.repositories.connection_repository import ConnectionRepository
 from app.repositories.schema_repository import SchemaRepository
 from app.schemas.schema_response import TableResponse, ColumnResponse, TableDetailResponse
+from app.core.security import decrypt_password
 from typing import List
 
 
@@ -45,7 +46,7 @@ class SchemaService:
 
         # Build the connection URL from stored credentials
         url = (
-            f"postgresql+psycopg2://{db_conn.username}:{db_conn.password}"
+            f"postgresql+psycopg2://{db_conn.username}:{decrypt_password(db_conn.password)}"
             f"@{db_conn.host}:{db_conn.port}/{db_conn.database}"
         )
 

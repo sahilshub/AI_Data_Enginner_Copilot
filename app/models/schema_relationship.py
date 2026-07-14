@@ -18,23 +18,31 @@ class SchemaRelationship(Base):
         index=True
     )
     
+    # Schema-qualifying source/target independently (rather than one shared
+    # schema_name) supports the rare but real case of a cross-schema FK, and
+    # is required to disambiguate same-named tables living in different
+    # schemas on one connection — see AGENTS.md Engineering Guardrails.
+    source_schema = Column(String, nullable=False, default="public")
     source_table = Column(String, nullable=False, index=True)
     source_column = Column(String, nullable=False)
-    
+
+    target_schema = Column(String, nullable=False, default="public")
     target_table = Column(String, nullable=False, index=True)
     target_column = Column(String, nullable=False)
-    
+
     relationship_type = Column(String, nullable=False, default="foreign_key")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Prevent saving duplicate relationships for the same connection
     __table_args__ = (
         UniqueConstraint(
-            "connection_id", 
-            "source_table", 
-            "source_column", 
-            "target_table", 
-            "target_column", 
+            "connection_id",
+            "source_schema",
+            "source_table",
+            "source_column",
+            "target_schema",
+            "target_table",
+            "target_column",
             name="uq_schema_relationship"
         ),
     )
