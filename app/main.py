@@ -5,6 +5,7 @@ from app.api.schema import router as schema_router
 from app.api.metadata import router as metadata_router
 from app.api.relationship import router as relationship_router
 from app.api.search import router as search_router
+from app.api.documentation import router as documentation_router
 from app.core.config import settings
 
 # Initialize the FastAPI application with metadata loaded from configuration settings
@@ -23,6 +24,7 @@ app.include_router(schema_router)
 app.include_router(metadata_router)
 app.include_router(relationship_router)
 app.include_router(search_router)
+app.include_router(documentation_router)
 
 @app.get("/", tags=["Root"])
 def read_root():

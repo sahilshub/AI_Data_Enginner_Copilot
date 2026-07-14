@@ -39,6 +39,22 @@ class RelationshipRepository:
             .all()
         )
 
+    def get_by_table_either_direction(self, connection_id: int, table_name: str) -> List[SchemaRelationship]:
+        """
+        Retrieves all stored relationships where the table participates as either
+        the source or the target — used for table documentation, where both
+        parent and child links are relevant.
+        """
+        return (
+            self.db.query(SchemaRelationship)
+            .filter(
+                SchemaRelationship.connection_id == connection_id,
+                (SchemaRelationship.source_table == table_name)
+                | (SchemaRelationship.target_table == table_name)
+            )
+            .all()
+        )
+
     def delete_by_connection(self, connection_id: int) -> None:
         """
         Removes all stored database relationship metadata records for a connection ID.
