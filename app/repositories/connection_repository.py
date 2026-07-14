@@ -44,7 +44,8 @@ class ConnectionRepository:
             port=schema_in.port,
             username=schema_in.username,
             password=encrypt_password(schema_in.password),
-            database=schema_in.database
+            database=schema_in.database,
+            extra_config=schema_in.extra_config,
         )
         self.db.add(db_connection)
         self.db.commit()

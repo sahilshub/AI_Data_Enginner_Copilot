@@ -505,32 +505,3 @@ You now have:
 ✓ Observability foundation
 
 The platform has evolved from an empty FastAPI application into a metadata platform capable of understanding databases.
-
----
-
-# What's Next
-
-## Phase 2 – Step 1
-
-### Local LLM Integration (Ollama)
-
-This is the beginning of the AI engineering portion of the project.
-
-You will learn:
-
-* What an LLM actually is
-* How Ollama works
-* Model selection
-* Context windows
-* Prompt construction
-* Local inference
-
-First feature:
-
-Ask:
-
-"Which table stores customer information?"
-
-The LLM will answer using metadata from your platform.
-
-This will be your first end-to-end AI feature.

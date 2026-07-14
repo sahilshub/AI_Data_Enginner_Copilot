@@ -2,6 +2,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app.repositories.connection_repository import ConnectionRepository
+from app.connectors.factory import is_supported_dialect
 from app.schemas.connection_schema import ConnectionCreate, ConnectionTest, ConnectionTestResponse
 from app.models.connection import DatabaseConnection
 from typing import List
@@ -27,7 +28,16 @@ class ConnectionService:
                 detail=f"A connection with name '{schema_in.name}' already exists."
             )
 
-        # 2. Enforce business rule: Validate credentials by pinging the database before saving
+        # 2. Enforce business rule: Reject unsupported dialects up front —
+        # fail fast here instead of a confusing error later during schema
+        # introspection (see app/connectors/factory.py).
+        if not is_supported_dialect(schema_in.dialect):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Dialect '{schema_in.dialect}' is not yet supported."
+            )
+
+        # 3. Enforce business rule: Validate credentials by pinging the database before saving
         test_payload = ConnectionTest(
             dialect=schema_in.dialect,
             host=schema_in.host,
@@ -43,7 +53,7 @@ class ConnectionService:
                 detail=f"Database connection verification failed: {test_result.message}"
             )
 
-        # 3. Save connection details via Repository
+        # 4. Save connection details via Repository
         return self.repo.create(schema_in)
 
     def get_connections(self, skip: int = 0, limit: int = 100) -> List[DatabaseConnection]:

@@ -1,6 +1,7 @@
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from typing import List, Dict, Any
+from collections import defaultdict
 
 
 class SchemaRepository:
@@ -76,3 +77,39 @@ class SchemaRepository:
             }
             for row in rows
         ]
+
+    def get_columns_bulk(self, schema_name: str = "public") -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Queries information_schema.columns for every table in the schema in
+        a single round-trip, grouped by table_name in Python.
+
+        Callers that need columns for many tables (e.g. a full-schema sync)
+        should use this instead of calling get_columns() once per table —
+        that pattern is one query per table, which for a 90-table schema is
+        90 sequential network round-trips to the target database. This is
+        one round-trip regardless of table count.
+
+        Returns:
+            A dict mapping table_name -> list of column dicts (same shape
+            as get_columns()'s return value).
+        """
+        query = text("""
+            SELECT table_name,
+                   column_name,
+                   data_type,
+                   is_nullable
+            FROM information_schema.columns
+            WHERE table_schema = :schema_name
+            ORDER BY table_name, ordinal_position
+        """)
+        with self.engine.connect() as conn:
+            rows = conn.execute(query, {"schema_name": schema_name}).fetchall()
+
+        columns_by_table: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for row in rows:
+            columns_by_table[row[0]].append({
+                "name": row[1],
+                "data_type": row[2],
+                "is_nullable": row[3].upper() == "YES",
+            })
+        return dict(columns_by_table)

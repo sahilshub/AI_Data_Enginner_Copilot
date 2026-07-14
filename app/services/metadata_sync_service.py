@@ -1,11 +1,11 @@
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from typing import List
 
 from app.repositories.connection_repository import ConnectionRepository
-from app.repositories.schema_repository import SchemaRepository
 from app.repositories.metadata_repository import MetadataRepository
+from app.connectors.factory import get_connector
+from app.connectors.base import SourceConnector
 from app.schemas.metadata_schema import (
     SyncResponse,
     StoredTableResponse,
@@ -41,10 +41,10 @@ class MetadataSyncService:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _get_target_engine(self, connection_id: int):
+    def _get_connector(self, connection_id: int) -> SourceConnector:
         """
-        Loads saved credentials from the Copilot DB and builds a transient
-        SQLAlchemy engine pointing at the *target* external database.
+        Loads saved credentials from the Copilot DB and resolves the
+        SourceConnector for the connection's dialect.
         """
         db_conn = self.conn_repo.get_by_id(connection_id)
         if not db_conn:
@@ -52,11 +52,15 @@ class MetadataSyncService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Database connection with ID {connection_id} not found."
             )
-        url = (
-            f"postgresql+psycopg2://{db_conn.username}:{decrypt_password(db_conn.password)}"
-            f"@{db_conn.host}:{db_conn.port}/{db_conn.database}"
+        return get_connector(
+            dialect=db_conn.dialect,
+            host=db_conn.host,
+            port=db_conn.port,
+            username=db_conn.username,
+            password=decrypt_password(db_conn.password),
+            database=db_conn.database,
+            extra_config=db_conn.extra_config,
         )
-        return create_engine(url, connect_args={"connect_timeout": 5})
 
     # ------------------------------------------------------------------
     # SYNC
@@ -80,11 +84,10 @@ class MetadataSyncService:
         """
         logger.info("metadata_sync_started", extra={"connection_id": connection_id, "schema_name": schema_name})
 
-        target_engine = self._get_target_engine(connection_id)
-        schema_repo = SchemaRepository(target_engine)
+        connector = self._get_connector(connection_id)
 
         try:
-            raw_tables = schema_repo.get_tables(schema_name)
+            raw_tables = connector.get_tables(schema_name)
         except Exception as e:
             logger.error(
                 "metadata_sync_failed",
@@ -94,6 +97,13 @@ class MetadataSyncService:
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Failed to read tables from target database: {str(e)}"
             )
+
+        # One round-trip for every table's columns, instead of one round-trip
+        # per table — see SchemaRepository.get_columns_bulk().
+        try:
+            columns_by_table = connector.get_columns_bulk(schema_name)
+        except Exception:
+            columns_by_table = {}  # Non-fatal: sync proceeds with tables but no columns
 
         # Delete stale records — cascade will also remove old columns
         self.meta_repo.delete_tables_by_connection(connection_id)
@@ -109,13 +119,7 @@ class MetadataSyncService:
                 schema_name=schema_name,
             )
 
-            # Discover and persist columns for this table
-            try:
-                raw_columns = schema_repo.get_columns(table_name, schema_name)
-            except Exception:
-                raw_columns = []  # Non-fatal: skip columns for this table
-
-            for raw_col in raw_columns:
+            for raw_col in columns_by_table.get(table_name, []):
                 self.meta_repo.save_column(
                     table_id=table_record.id,
                     column_name=raw_col["name"],

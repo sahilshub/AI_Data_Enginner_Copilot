@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Optional
 
 class ConnectionBase(BaseModel):
     """
@@ -32,9 +32,17 @@ class ConnectionBase(BaseModel):
         json_schema_extra={"example": "postgres"}
     )
     database: str = Field(
-        ..., 
+        ...,
         description="Name of the database catalog to connect to.",
         json_schema_extra={"example": "copilot_db"}
+    )
+    extra_config: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Source-specific config that doesn't fit host/port/username/password/database "
+            "(e.g. a future BigQuery service-account key + project id, or Snowflake's "
+            "warehouse/role). Unused for the currently-supported 'postgresql' dialect."
+        )
     )
 
 class ConnectionCreate(ConnectionBase):
@@ -43,7 +51,7 @@ class ConnectionCreate(ConnectionBase):
     Includes the password, which is required to write to the database.
     """
     password: str = Field(
-        ..., 
+        ...,
         description="Password credential corresponding to username.",
         json_schema_extra={"example": "postgres"}
     )

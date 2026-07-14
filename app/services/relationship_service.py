@@ -1,10 +1,11 @@
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from typing import List
 
 from app.repositories.connection_repository import ConnectionRepository
 from app.repositories.relationship_repository import RelationshipRepository
+from app.connectors.factory import get_connector
+from app.connectors.base import SourceConnector
 from app.schemas.relationship_schema import (
     RelationshipResponse,
     TableRelationshipResponse,
@@ -26,9 +27,10 @@ class RelationshipService:
     # Private Helpers
     # ------------------------------------------------------------------------------
 
-    def _get_target_engine(self, connection_id: int):
+    def _get_connector(self, connection_id: int) -> SourceConnector:
         """
-        Loads registered connection settings and constructs a transient engine.
+        Loads registered connection settings and resolves the SourceConnector
+        for its dialect.
         """
         db_conn = self.conn_repo.get_by_id(connection_id)
         if not db_conn:
@@ -36,12 +38,16 @@ class RelationshipService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Database connection with ID {connection_id} not found."
             )
-            
-        url = (
-            f"postgresql+psycopg2://{db_conn.username}:{decrypt_password(db_conn.password)}"
-            f"@{db_conn.host}:{db_conn.port}/{db_conn.database}"
+
+        return get_connector(
+            dialect=db_conn.dialect,
+            host=db_conn.host,
+            port=db_conn.port,
+            username=db_conn.username,
+            password=decrypt_password(db_conn.password),
+            database=db_conn.database,
+            extra_config=db_conn.extra_config,
         )
-        return create_engine(url, connect_args={"connect_timeout": 5})
 
     # ------------------------------------------------------------------------------
     # Public Service Actions
@@ -55,11 +61,11 @@ class RelationshipService:
         and saves them locally in the Copilot DB schema catalog.
         Replaces previous relationship records for the connection.
         """
-        target_engine = self._get_target_engine(connection_id)
-        
+        connector = self._get_connector(connection_id)
+
         try:
             # Query target constraints
-            fkeys = self.rel_repo.get_foreign_keys_from_target(target_engine, schema_name)
+            fkeys = connector.get_foreign_keys(schema_name)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,

@@ -1,9 +1,9 @@
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 from app.repositories.connection_repository import ConnectionRepository
-from app.repositories.schema_repository import SchemaRepository
+from app.connectors.factory import get_connector
+from app.connectors.base import SourceConnector
 from app.schemas.schema_response import TableResponse, ColumnResponse, TableDetailResponse
 from app.core.security import decrypt_password
 from typing import List
@@ -15,11 +15,12 @@ class SchemaService:
 
     Responsibilities:
       1. Load the saved connection credentials from our copilot's own database.
-      2. Build a transient SQLAlchemy engine pointing at the *target* database.
-      3. Delegate raw metadata queries to SchemaRepository.
+      2. Resolve the right SourceConnector for the connection's dialect.
+      3. Delegate raw metadata queries to that connector.
       4. Transform raw rows into typed Pydantic response objects.
 
-    The service knows *nothing* about SQL syntax or HTTP. It only coordinates.
+    The service knows *nothing* about SQL syntax, credential shape, or HTTP —
+    all of that is behind SourceConnector. See app/connectors/.
     """
 
     def __init__(self, db: Session):
@@ -30,12 +31,11 @@ class SchemaService:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _get_engine_for_connection(self, connection_id: int):
+    def _get_connector(self, connection_id: int) -> SourceConnector:
         """
-        Loads a saved DatabaseConnection record and builds a transient
-        SQLAlchemy engine pointed at that external target database.
-
-        Raises 404 if the connection_id does not exist.
+        Loads a saved DatabaseConnection record and resolves the
+        SourceConnector for its dialect. Raises 404 if the connection_id
+        does not exist, or 400 if the dialect isn't supported yet.
         """
         db_conn = self.connection_repo.get_by_id(connection_id)
         if not db_conn:
@@ -44,14 +44,15 @@ class SchemaService:
                 detail=f"Database connection with ID {connection_id} not found."
             )
 
-        # Build the connection URL from stored credentials
-        url = (
-            f"postgresql+psycopg2://{db_conn.username}:{decrypt_password(db_conn.password)}"
-            f"@{db_conn.host}:{db_conn.port}/{db_conn.database}"
+        return get_connector(
+            dialect=db_conn.dialect,
+            host=db_conn.host,
+            port=db_conn.port,
+            username=db_conn.username,
+            password=decrypt_password(db_conn.password),
+            database=db_conn.database,
+            extra_config=db_conn.extra_config,
         )
-
-        # connect_timeout prevents an unreachable host from hanging indefinitely
-        return create_engine(url, connect_args={"connect_timeout": 5})
 
     # ------------------------------------------------------------------
     # Public service methods
@@ -68,11 +69,10 @@ class SchemaService:
             connection_id: ID of the saved connection record.
             schema_name:   PostgreSQL schema to inspect. Defaults to 'public'.
         """
-        engine = self._get_engine_for_connection(connection_id)
-        repo = SchemaRepository(engine)
+        connector = self._get_connector(connection_id)
 
         try:
-            raw = repo.get_tables(schema_name)
+            raw = connector.get_tables(schema_name)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -93,11 +93,10 @@ class SchemaService:
             table_name:    Name of the table to inspect.
             schema_name:   PostgreSQL schema containing the table. Defaults to 'public'.
         """
-        engine = self._get_engine_for_connection(connection_id)
-        repo = SchemaRepository(engine)
+        connector = self._get_connector(connection_id)
 
         try:
-            raw_columns = repo.get_columns(table_name, schema_name)
+            raw_columns = connector.get_columns(table_name, schema_name)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,

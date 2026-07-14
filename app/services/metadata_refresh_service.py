@@ -1,13 +1,13 @@
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from typing import Any, Dict, List, Tuple
 
 from app.repositories.connection_repository import ConnectionRepository
-from app.repositories.schema_repository import SchemaRepository
 from app.repositories.metadata_repository import MetadataRepository
 from app.repositories.relationship_repository import RelationshipRepository
 from app.repositories.metadata_change_repository import MetadataChangeRepository
+from app.connectors.factory import get_connector
+from app.connectors.base import SourceConnector
 from app.services.metadata_sync_service import MetadataSyncService
 from app.services.relationship_service import RelationshipService
 from app.schemas.metadata_change_schema import (
@@ -45,18 +45,22 @@ class MetadataRefreshService:
         self.rel_repo = RelationshipRepository(db)
         self.change_repo = MetadataChangeRepository(db)
 
-    def _get_target_engine(self, connection_id: int):
+    def _get_connector(self, connection_id: int) -> SourceConnector:
         db_conn = self.conn_repo.get_by_id(connection_id)
         if not db_conn:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Database connection with ID {connection_id} not found."
             )
-        url = (
-            f"postgresql+psycopg2://{db_conn.username}:{decrypt_password(db_conn.password)}"
-            f"@{db_conn.host}:{db_conn.port}/{db_conn.database}"
+        return get_connector(
+            dialect=db_conn.dialect,
+            host=db_conn.host,
+            port=db_conn.port,
+            username=db_conn.username,
+            password=decrypt_password(db_conn.password),
+            database=db_conn.database,
+            extra_config=db_conn.extra_config,
         )
-        return create_engine(url, connect_args={"connect_timeout": 5})
 
     # ------------------------------------------------------------------
     # Diff detection
@@ -69,8 +73,7 @@ class MetadataRefreshService:
         previous_value, new_value) describing every difference found.
         Does not persist anything or touch the catalog.
         """
-        target_engine = self._get_target_engine(connection_id)
-        schema_repo = SchemaRepository(target_engine)
+        connector = self._get_connector(connection_id)
 
         # --- Before: what the catalog currently holds ---
         before_tables = {
@@ -89,15 +92,18 @@ class MetadataRefreshService:
         }
 
         # --- After: a fresh live read of the target database ---
+        # get_columns_bulk() is one round-trip for every table's columns,
+        # instead of one round-trip per table.
         try:
-            raw_tables = schema_repo.get_tables(schema_name)
+            raw_tables = connector.get_tables(schema_name)
+            columns_by_table = connector.get_columns_bulk(schema_name)
             after_columns = {
                 rt["table_name"]: {
-                    c["name"]: c for c in schema_repo.get_columns(rt["table_name"], schema_name)
+                    c["name"]: c for c in columns_by_table.get(rt["table_name"], [])
                 }
                 for rt in raw_tables
             }
-            raw_fks = RelationshipRepository.get_foreign_keys_from_target(target_engine, schema_name)
+            raw_fks = connector.get_foreign_keys(schema_name)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,

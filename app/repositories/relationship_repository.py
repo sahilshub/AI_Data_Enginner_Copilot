@@ -123,8 +123,8 @@ class RelationshipRepository:
         engine: Engine, schema_name: str = "public"
     ) -> List[Dict[str, Any]]:
         """
-        Queries information_schema on the external target database to discover all
-        FOREIGN KEY constraints in the specified schema.
+        Queries PostgreSQL's native system catalogs (pg_constraint et al.) to
+        discover all FOREIGN KEY constraints in the specified schema.
 
         Args:
             engine:      SQLAlchemy engine pointed at the target database.
@@ -136,45 +136,52 @@ class RelationshipRepository:
             A list of dicts with keys: source_schema, source_table, source_column,
             target_schema, target_table, target_column. target_schema can differ
             from source_schema/schema_name for a cross-schema foreign key —
-            it's read from the referenced constraint, not assumed to match.
+            it's read from the referenced table's own namespace, not assumed
+            to match source_schema.
 
         Note:
-            `constraint_column_usage` is joined by matching each source
-            column's `position_in_unique_constraint` to the referenced
-            column's `ordinal_position` (via `referential_constraints`).
-            Joining only on `constraint_name`, as a naive query would,
-            produces a cross join for composite foreign keys — e.g. a
-            2-column FK referencing a 2-column key yields 4 mismatched
-            row pairs instead of 2 correctly paired ones.
+            This deliberately queries pg_catalog instead of information_schema.
+            information_schema views (table_constraints, key_column_usage,
+            constraint_column_usage, ...) apply SQL-standard visibility/
+            permission checks across the *entire* catalog before filtering,
+            which on a database with substantial catalog size can make a
+            single query take tens of seconds — even though it's already one
+            query, not one-per-table. pg_constraint/pg_class/pg_namespace/
+            pg_attribute are plain indexed system tables with no such
+            overhead and are the standard fast path for FK introspection.
 
-            `SELECT DISTINCT` collapses cases where multiple separate FK
-            constraints resolve to the same (source_table, source_column,
-            target_table, target_column) tuple — e.g. inherited/partitioned
-            tables that each declare their own copy of the same logical FK.
-            The catalog only stores one row per relationship regardless.
+            `unnest(con.conkey, con.confkey)` pairs source and target key
+            columns positionally (conkey[i] always corresponds to confkey[i]
+            by construction) — this is what the old information_schema query
+            needed a three-way join + position_in_unique_constraint to
+            achieve, and gets here for free from how Postgres stores
+            composite foreign keys.
+
+            `SELECT DISTINCT` still guards against multiple separate FK
+            constraint objects resolving to the same logical relationship
+            (e.g. inherited/partitioned tables each declaring their own copy).
         """
         query = text("""
             SELECT DISTINCT
-                kcu.table_schema AS source_schema,
-                kcu.table_name  AS source_table,
-                kcu.column_name AS source_column,
-                ccu.table_schema AS target_schema,
-                ccu.table_name  AS target_table,
-                ccu.column_name AS target_column
-            FROM
-                information_schema.table_constraints AS tc
-                JOIN information_schema.key_column_usage AS kcu
-                  ON tc.constraint_name = kcu.constraint_name
-                 AND tc.table_schema    = kcu.table_schema
-                JOIN information_schema.referential_constraints AS rc
-                  ON tc.constraint_name = rc.constraint_name
-                 AND tc.table_schema    = rc.constraint_schema
-                JOIN information_schema.key_column_usage AS ccu
-                  ON rc.unique_constraint_name   = ccu.constraint_name
-                 AND rc.unique_constraint_schema = ccu.table_schema
-                 AND kcu.position_in_unique_constraint = ccu.ordinal_position
-            WHERE tc.constraint_type = 'FOREIGN KEY'
-              AND tc.table_schema    = :schema_name
+                ns_src.nspname  AS source_schema,
+                cls_src.relname AS source_table,
+                att_src.attname AS source_column,
+                ns_tgt.nspname  AS target_schema,
+                cls_tgt.relname AS target_table,
+                att_tgt.attname AS target_column
+            FROM pg_constraint con
+            JOIN pg_class     cls_src ON cls_src.oid = con.conrelid
+            JOIN pg_namespace ns_src  ON ns_src.oid  = cls_src.relnamespace
+            JOIN pg_class     cls_tgt ON cls_tgt.oid = con.confrelid
+            JOIN pg_namespace ns_tgt  ON ns_tgt.oid  = cls_tgt.relnamespace
+            CROSS JOIN LATERAL unnest(con.conkey, con.confkey) AS cols(src_attnum, tgt_attnum)
+            JOIN pg_attribute att_src
+              ON att_src.attrelid = con.conrelid AND att_src.attnum = cols.src_attnum
+            JOIN pg_attribute att_tgt
+              ON att_tgt.attrelid = con.confrelid AND att_tgt.attnum = cols.tgt_attnum
+            WHERE con.contype = 'f'
+              AND ns_src.nspname = :schema_name
+            ORDER BY source_table, source_column
         """)
         with engine.connect() as conn:
             rows = conn.execute(query, {"schema_name": schema_name}).fetchall()
