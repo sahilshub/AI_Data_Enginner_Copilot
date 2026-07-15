@@ -20,7 +20,13 @@ class PostgresConnector(SourceConnector):
             f"postgresql+psycopg2://{self.username}:{self.password}"
             f"@{self.host}:{self.port}/{self.database}"
         )
-        self._engine = create_engine(url, connect_args={"connect_timeout": 5})
+        # pool_pre_ping matters here specifically because connectors are now
+        # cached and reused across requests (see ConnectorCache) instead of
+        # being created fresh per call — a long-lived pooled connection can
+        # go stale (target DB restart, idle timeout, network blip).
+        # pool_pre_ping detects that and transparently reconnects instead of
+        # surfacing a confusing "server closed the connection" error.
+        self._engine = create_engine(url, connect_args={"connect_timeout": 5}, pool_pre_ping=True)
         self._schema_repo = SchemaRepository(self._engine)
 
     def test_connection(self) -> Tuple[bool, str]:
@@ -42,3 +48,6 @@ class PostgresConnector(SourceConnector):
 
     def get_foreign_keys(self, schema_name: str) -> List[Dict[str, Any]]:
         return RelationshipRepository.get_foreign_keys_from_target(self._engine, schema_name)
+
+    def dispose(self) -> None:
+        self._engine.dispose()

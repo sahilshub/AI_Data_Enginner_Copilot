@@ -58,3 +58,13 @@ class SourceConnector(ABC):
     @abstractmethod
     def get_foreign_keys(self, schema_name: str) -> List[Dict[str, Any]]:
         raise NotImplementedError
+
+    @abstractmethod
+    def dispose(self) -> None:
+        """
+        Releases any held resources (e.g. closes a connection pool). Called
+        by ConnectorCache.invalidate() when a connection is deleted or its
+        credentials change — connectors are cached and reused across
+        requests, so this is the only place resources get released.
+        """
+        raise NotImplementedError

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app.repositories.connection_repository import ConnectionRepository
 from app.connectors.factory import is_supported_dialect
+from app.connectors.cache import connector_cache
 from app.schemas.connection_schema import ConnectionCreate, ConnectionTest, ConnectionTestResponse
 from app.models.connection import DatabaseConnection
 from typing import List
@@ -74,6 +75,10 @@ class ConnectionService:
                 detail=f"Database connection with ID {connection_id} not found."
             )
         self.repo.delete(db_connection)
+        # Evict and dispose the cached connector (if any) — otherwise its
+        # pooled connections to the now-deleted connection's target DB would
+        # linger for the lifetime of the process. See app/connectors/cache.py.
+        connector_cache.invalidate(connection_id)
 
     @staticmethod
     def test_connection(schema: ConnectionTest) -> ConnectionTestResponse:

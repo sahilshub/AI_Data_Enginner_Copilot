@@ -99,6 +99,21 @@ class MetadataRepository:
             .all()
         )
 
+    def count_columns_by_connection(self, connection_id: int) -> int:
+        """
+        Returns the total column count across every table for a connection
+        in a single query. Prefer this over summing len(get_columns_by_table(t.id))
+        in a per-table loop — that pattern is one query per table against
+        the Copilot's own DB (cheap individually, but still O(N) round-trips
+        for something a single COUNT(*) JOIN answers directly).
+        """
+        return (
+            self.db.query(SchemaColumn)
+            .join(SchemaTable, SchemaColumn.table_id == SchemaTable.id)
+            .filter(SchemaTable.connection_id == connection_id)
+            .count()
+        )
+
     # ------------------------------------------------------------------
     # Commit helper
     # ------------------------------------------------------------------

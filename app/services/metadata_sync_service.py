@@ -5,6 +5,7 @@ from typing import List
 from app.repositories.connection_repository import ConnectionRepository
 from app.repositories.metadata_repository import MetadataRepository
 from app.connectors.factory import get_connector
+from app.connectors.cache import connector_cache
 from app.connectors.base import SourceConnector
 from app.schemas.metadata_schema import (
     SyncResponse,
@@ -52,14 +53,17 @@ class MetadataSyncService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Database connection with ID {connection_id} not found."
             )
-        return get_connector(
-            dialect=db_conn.dialect,
-            host=db_conn.host,
-            port=db_conn.port,
-            username=db_conn.username,
-            password=decrypt_password(db_conn.password),
-            database=db_conn.database,
-            extra_config=db_conn.extra_config,
+        return connector_cache.get_or_create(
+            connection_id,
+            lambda: get_connector(
+                dialect=db_conn.dialect,
+                host=db_conn.host,
+                port=db_conn.port,
+                username=db_conn.username,
+                password=decrypt_password(db_conn.password),
+                database=db_conn.database,
+                extra_config=db_conn.extra_config,
+            ),
         )
 
     # ------------------------------------------------------------------

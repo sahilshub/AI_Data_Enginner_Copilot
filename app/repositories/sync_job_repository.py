@@ -55,6 +55,25 @@ class SyncJobRepository:
     def get_by_id(self, job_id: int) -> Optional[SyncJob]:
         return self.db.query(SyncJob).filter(SyncJob.id == job_id).first()
 
+    def get_active_job(self, connection_id: int, job_type: str) -> Optional[SyncJob]:
+        """
+        Returns an already-queued or in-progress job of this type for this
+        connection, if one exists. Used to avoid queueing duplicate
+        sync/refresh jobs that would all hit the same target database
+        concurrently — callers should return the existing job_id instead of
+        creating a new one when this returns non-None.
+        """
+        return (
+            self.db.query(SyncJob)
+            .filter(
+                SyncJob.connection_id == connection_id,
+                SyncJob.job_type == job_type,
+                SyncJob.status.in_(["pending", "running"]),
+            )
+            .order_by(SyncJob.created_at.desc())
+            .first()
+        )
+
     def get_by_connection(self, connection_id: int, limit: int = 20) -> List[SyncJob]:
         return (
             self.db.query(SyncJob)

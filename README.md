@@ -94,11 +94,18 @@ docker run -d -p 6379:6379 redis:7-alpine
 ```
 Then start a worker in its own terminal:
 ```bash
+# Linux / macOS
 celery -A app.core.celery_app worker --loglevel=info
+
+# Windows — REQUIRED: --pool=solo. Celery's default 'prefork' pool relies on
+# billiard/multiprocessing with real fork(), which Windows doesn't have.
+# Omitting this crashes with "PermissionError: [WinError 5] Access is denied"
+# inside billiard's pool synchronization.
+celery -A app.core.celery_app worker --loglevel=info --pool=solo
 ```
-(On Windows, add `--pool=solo`.) Without a running worker, sync/refresh jobs
-will queue but never complete — poll `GET /connections/{id}/jobs/{job_id}`
-to check.
+Without a running worker, sync/refresh jobs will queue but never complete —
+poll `GET /connections/{id}/jobs/{job_id}` to check (`status` stays
+`"pending"` forever if no worker is running).
 
 ### 7. Run the Server
 Start the development server using Uvicorn:

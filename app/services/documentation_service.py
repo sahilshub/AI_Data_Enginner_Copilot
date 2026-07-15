@@ -46,7 +46,7 @@ class DocumentationService:
         connection = self._require_connection(connection_id)
 
         tables = self.meta_repo.get_tables_by_connection(connection_id)
-        column_count = sum(len(self.meta_repo.get_columns_by_table(t.id)) for t in tables)
+        column_count = self.meta_repo.count_columns_by_connection(connection_id)
         relationships = self.rel_repo.get_by_connection(connection_id)
 
         return DatabaseDocumentationResponse(

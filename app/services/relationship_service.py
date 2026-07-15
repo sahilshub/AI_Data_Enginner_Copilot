@@ -5,6 +5,7 @@ from typing import List
 from app.repositories.connection_repository import ConnectionRepository
 from app.repositories.relationship_repository import RelationshipRepository
 from app.connectors.factory import get_connector
+from app.connectors.cache import connector_cache
 from app.connectors.base import SourceConnector
 from app.schemas.relationship_schema import (
     RelationshipResponse,
@@ -39,14 +40,17 @@ class RelationshipService:
                 detail=f"Database connection with ID {connection_id} not found."
             )
 
-        return get_connector(
-            dialect=db_conn.dialect,
-            host=db_conn.host,
-            port=db_conn.port,
-            username=db_conn.username,
-            password=decrypt_password(db_conn.password),
-            database=db_conn.database,
-            extra_config=db_conn.extra_config,
+        return connector_cache.get_or_create(
+            connection_id,
+            lambda: get_connector(
+                dialect=db_conn.dialect,
+                host=db_conn.host,
+                port=db_conn.port,
+                username=db_conn.username,
+                password=decrypt_password(db_conn.password),
+                database=db_conn.database,
+                extra_config=db_conn.extra_config,
+            ),
         )
 
     # ------------------------------------------------------------------------------

@@ -7,6 +7,7 @@ from app.repositories.metadata_repository import MetadataRepository
 from app.repositories.relationship_repository import RelationshipRepository
 from app.repositories.metadata_change_repository import MetadataChangeRepository
 from app.connectors.factory import get_connector
+from app.connectors.cache import connector_cache
 from app.connectors.base import SourceConnector
 from app.services.metadata_sync_service import MetadataSyncService
 from app.services.relationship_service import RelationshipService
@@ -52,26 +53,34 @@ class MetadataRefreshService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Database connection with ID {connection_id} not found."
             )
-        return get_connector(
-            dialect=db_conn.dialect,
-            host=db_conn.host,
-            port=db_conn.port,
-            username=db_conn.username,
-            password=decrypt_password(db_conn.password),
-            database=db_conn.database,
-            extra_config=db_conn.extra_config,
+        return connector_cache.get_or_create(
+            connection_id,
+            lambda: get_connector(
+                dialect=db_conn.dialect,
+                host=db_conn.host,
+                port=db_conn.port,
+                username=db_conn.username,
+                password=decrypt_password(db_conn.password),
+                database=db_conn.database,
+                extra_config=db_conn.extra_config,
+            ),
         )
 
     # ------------------------------------------------------------------
     # Diff detection
     # ------------------------------------------------------------------
 
-    def detect_changes(self, connection_id: int, schema_name: str = "public") -> List[Dict[str, Any]]:
+    def detect_changes(
+        self, connection_id: int, schema_name: str = "public", include_relationships: bool = True
+    ) -> List[Dict[str, Any]]:
         """
         Reads the current catalog snapshot and a fresh live snapshot, and
         returns a list of change dicts (change_type, object_type, object_name,
         previous_value, new_value) describing every difference found.
         Does not persist anything or touch the catalog.
+
+        include_relationships=False skips relationship diffing entirely —
+        for the narrow case of wanting schema-only, faster detection.
         """
         connector = self._get_connector(connection_id)
 
@@ -89,7 +98,7 @@ class MetadataRefreshService:
         before_relationships: Dict[RelationshipKey, None] = {
             (r.source_schema, r.source_table, r.source_column, r.target_schema, r.target_table, r.target_column): None
             for r in self.rel_repo.get_by_connection(connection_id)
-        }
+        } if include_relationships else {}
 
         # --- After: a fresh live read of the target database ---
         # get_columns_bulk() is one round-trip for every table's columns,
@@ -103,7 +112,7 @@ class MetadataRefreshService:
                 }
                 for rt in raw_tables
             }
-            raw_fks = connector.get_foreign_keys(schema_name)
+            raw_fks = connector.get_foreign_keys(schema_name) if include_relationships else []
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -186,22 +195,36 @@ class MetadataRefreshService:
     # Public service actions
     # ------------------------------------------------------------------
 
-    def refresh_metadata(self, connection_id: int, schema_name: str = "public") -> RefreshResponse:
+    def refresh_metadata(
+        self, connection_id: int, schema_name: str = "public", include_relationships: bool = True
+    ) -> RefreshResponse:
         """
         Detects changes against the live target database, records them,
-        then updates the catalog (tables/columns/relationships) to match.
+        then updates the catalog (tables/columns, and relationships unless
+        include_relationships=False) to match.
+
+        This is the single entry point for bringing the catalog up to
+        date — it superseded the separate `sync` and `discover` endpoints
+        (Phase 1, Step 14): it's a strict superset of what they did
+        individually, plus diffing, and works correctly as the very first
+        call for a brand-new connection (an empty "before" snapshot just
+        means everything shows up as *_ADDED).
         """
-        logger.info("metadata_refresh_started", extra={"connection_id": connection_id, "schema_name": schema_name})
+        logger.info(
+            "metadata_refresh_started",
+            extra={"connection_id": connection_id, "schema_name": schema_name, "include_relationships": include_relationships},
+        )
 
         try:
-            changes = self.detect_changes(connection_id, schema_name)
+            changes = self.detect_changes(connection_id, schema_name, include_relationships)
 
             if changes:
                 self.change_repo.save_changes(connection_id, changes)
 
             # Catalog update is delegated — see class docstring.
             MetadataSyncService(self.db).sync_connection_metadata(connection_id, schema_name)
-            RelationshipService(self.db).discover_relationships(connection_id, schema_name)
+            if include_relationships:
+                RelationshipService(self.db).discover_relationships(connection_id, schema_name)
         except Exception as e:
             metrics.record_metadata_refresh(success=False)
             logger.error(

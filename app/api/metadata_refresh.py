@@ -27,14 +27,20 @@ router = APIRouter(
     description=(
         "Queues a background job that reads the live target database, compares it "
         "against the stored metadata catalog, records any detected changes, then "
-        "updates the catalog to match. Returns immediately with a job_id — poll "
+        "updates the catalog to match. This is the single entry point for bringing "
+        "the catalog up to date — it also works correctly as the very first sync "
+        "for a brand-new connection. Returns immediately with a job_id — poll "
         "GET /connections/{connection_id}/jobs/{job_id} for status and results. "
-        "See docs/phase-1/step-13.md."
+        "See docs/phase-1/step-14.md."
     ),
 )
 def refresh_metadata(
     connection_id: int,
     schema_name: str = Query("public", description="PostgreSQL schema to refresh."),
+    include_relationships: bool = Query(
+        True,
+        description="Set to false to skip relationship (foreign key) discovery and only refresh tables/columns."
+    ),
     db: Session = Depends(get_db),
 ) -> JobAcceptedResponse:
     if not ConnectionRepository(db).get_by_id(connection_id):
@@ -43,8 +49,20 @@ def refresh_metadata(
             detail=f"Database connection with ID {connection_id} not found."
         )
 
-    job = SyncJobRepository(db).create(connection_id, job_type="refresh", schema_name=schema_name)
-    refresh_metadata_task.delay(job.id, connection_id, schema_name)
+    job_repo = SyncJobRepository(db)
+
+    # Avoid queueing a redundant job that would hit the same target database
+    # concurrently with one already in flight — return the existing job_id.
+    existing = job_repo.get_active_job(connection_id, job_type="refresh")
+    if existing:
+        return JobAcceptedResponse(
+            job_id=existing.id,
+            status=existing.status,
+            message="A refresh job for this connection is already in progress; returning its job_id.",
+        )
+
+    job = job_repo.create(connection_id, job_type="refresh", schema_name=schema_name)
+    refresh_metadata_task.delay(job.id, connection_id, schema_name, include_relationships)
 
     return JobAcceptedResponse(
         job_id=job.id,

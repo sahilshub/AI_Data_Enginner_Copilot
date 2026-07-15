@@ -114,8 +114,9 @@ Containerization
 
 AI
 
-* Ollama
-* Any free available models
+* Hosted LLM providers, user's own API key (bring-your-own-key) — Anthropic,
+  OpenAI, Gemini, or Grok, user's choice. Revises the original local-Ollama
+  plan; see `docs/phase-2/step-1.md` for why and how.
 
 Embeddings
 
@@ -303,8 +304,11 @@ Never violate these boundaries.
   required for jobs to actually complete — without one, `POST .../sync`
   returns a `job_id` that queues but never progresses past `pending`.
   * `docker run -d -p 6379:6379 redis:7-alpine` (or `docker compose up -d redis`)
-  * `celery -A app.core.celery_app worker --loglevel=info` (add `--pool=solo`
-    on Windows)
+  * `celery -A app.core.celery_app worker --loglevel=info` — on Windows this
+    **requires** `--pool=solo`; the default `prefork` pool needs a real
+    `fork()` (via `billiard`/multiprocessing) that Windows doesn't have, and
+    fails with `PermissionError: [WinError 5] Access is denied`. This isn't
+    optional tuning on Windows, it's a hard requirement.
   * Job state is a `SyncJob` row in Postgres (`GET /connections/{id}/jobs[/{job_id}]`),
     not just Celery's Redis result backend — the backend is TTL-based and
     can be evicted, Postgres is the durable source of truth.

@@ -6,7 +6,6 @@ from app.core.database import get_db
 from app.schemas.relationship_schema import (
     RelationshipResponse,
     TableRelationshipResponse,
-    DiscoverRelationshipsResponse,
 )
 from app.services.relationship_service import RelationshipService
 
@@ -15,24 +14,9 @@ router = APIRouter(
     tags=["Schema Relationships"]
 )
 
-@router.post(
-    "/discover",
-    response_model=DiscoverRelationshipsResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Discover and sync schema relationships",
-    description=(
-        "Queries foreign key constraints in the target database and "
-        "stores the relationships locally. Replaces existing relationships for this connection. "
-        "Use the `schema_name` query parameter to target a non-default schema (e.g. `analytics`)."
-    )
-)
-def discover_relationships(
-    connection_id: int,
-    schema_name: str = "public",
-    db: Session = Depends(get_db)
-) -> DiscoverRelationshipsResponse:
-    service = RelationshipService(db)
-    return service.discover_relationships(connection_id, schema_name)
+# Relationship discovery is triggered via POST /connections/{id}/metadata/refresh
+# (Phase 1, Step 14) — refresh calls RelationshipService.discover_relationships()
+# internally, so a separate /discover route is redundant surface area.
 
 @router.get(
     "",
