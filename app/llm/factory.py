@@ -6,7 +6,7 @@ from app.llm.base import LLMProvider
 from app.llm.anthropic_provider import AnthropicProvider
 from app.llm.openai_provider import OpenAIProvider
 from app.llm.gemini_provider import GeminiProvider
-from app.llm.grok_provider import GrokProvider
+from app.llm.groq_provider import GroqProvider
 
 # Every provider this app can actually call today. Add an entry here (and a
 # provider class) when a new one is implemented — nothing else needs to
@@ -15,7 +15,7 @@ _PROVIDERS = {
     "anthropic": AnthropicProvider,
     "openai": OpenAIProvider,
     "gemini": GeminiProvider,
-    "grok": GrokProvider,
+    "groq": GroqProvider,
 }
 
 
