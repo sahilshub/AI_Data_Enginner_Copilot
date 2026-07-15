@@ -56,6 +56,27 @@ class ConnectionCreate(ConnectionBase):
         json_schema_extra={"example": "postgres"}
     )
 
+class ConnectionUpdate(BaseModel):
+    """
+    Schema for partially updating a database connection. Every field is
+    optional — only the ones provided are changed. `password` is optional
+    too: omit it to keep the existing (encrypted) password rather than
+    being forced to resupply it just to change, say, the host.
+
+    Common use: fixing `host` after moving where the API runs — e.g.
+    switching from "localhost" to "host.docker.internal" once the API
+    moved into a Docker container and "localhost" started meaning the
+    container itself instead of the host machine.
+    """
+    name: Optional[str] = Field(default=None, description="A unique friendly identifier for this database connection.")
+    dialect: Optional[str] = Field(default=None, description="Type of the target database engine.")
+    host: Optional[str] = Field(default=None, description="Hostname or IP address of the database server.")
+    port: Optional[int] = Field(default=None, description="Network port the database server listens on.")
+    username: Optional[str] = Field(default=None, description="Login credential username.")
+    password: Optional[str] = Field(default=None, description="New password. Omit to keep the existing one.")
+    database: Optional[str] = Field(default=None, description="Name of the database catalog to connect to.")
+    extra_config: Optional[Dict[str, Any]] = Field(default=None, description="Source-specific config; see ConnectionBase.")
+
 class ConnectionResponse(ConnectionBase):
     """
     Schema for database connection responses.

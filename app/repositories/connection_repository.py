@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from app.models.connection import DatabaseConnection
 from app.schemas.connection_schema import ConnectionCreate
 from app.core.security import encrypt_password
@@ -51,6 +51,21 @@ class ConnectionRepository:
         self.db.commit()
         self.db.refresh(db_connection)
         return db_connection
+
+    def update(self, db_obj: DatabaseConnection, updates: Dict[str, Any]) -> DatabaseConnection:
+        """
+        Applies a partial update to an existing DatabaseConnection record.
+        `updates` should only contain keys the caller actually wants to
+        change (already filtered — see ConnectionService.update_connection).
+        Encrypts `password` if it's one of the provided keys.
+        """
+        for field, value in updates.items():
+            if field == "password":
+                value = encrypt_password(value)
+            setattr(db_obj, field, value)
+        self.db.commit()
+        self.db.refresh(db_obj)
+        return db_obj
 
     def delete(self, db_obj: DatabaseConnection) -> None:
         """

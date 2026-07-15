@@ -4,6 +4,7 @@ from typing import List
 from app.core.database import get_db
 from app.schemas.connection_schema import (
     ConnectionCreate,
+    ConnectionUpdate,
     ConnectionResponse,
     ConnectionTest,
     ConnectionTestResponse
@@ -40,6 +41,25 @@ def get_connections(skip: int = 0, limit: int = 100, db: Session = Depends(get_d
     """
     service = ConnectionService(db)
     return service.get_connections(skip=skip, limit=limit)
+
+@router.patch(
+    "/{connection_id}",
+    response_model=ConnectionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update a database connection",
+    description=(
+        "Partially updates a registered connection — only the fields provided are changed. "
+        "Re-validates connectivity with the merged settings before saving. Common use: fixing "
+        "`host` after moving where the API runs (e.g. 'localhost' -> 'host.docker.internal' "
+        "once the API moved into a Docker container)."
+    )
+)
+def update_connection(connection_id: int, schema_in: ConnectionUpdate, db: Session = Depends(get_db)) -> ConnectionResponse:
+    """
+    Updates connection details by ID. Raises 404 if the connection profile is not found.
+    """
+    service = ConnectionService(db)
+    return service.update_connection(connection_id, schema_in)
 
 @router.delete(
     "/{connection_id}",
