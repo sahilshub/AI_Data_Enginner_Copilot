@@ -7,7 +7,7 @@
 Let the user answer natural-language questions about their connected
 databases ("Which table stores customer information?") using a **hosted
 LLM provider of their choice** — Anthropic (Claude), OpenAI (GPT), Google
-(Gemini), or xAI (Grok) — authenticated with their own API key.
+(Gemini), or Groq — authenticated with their own API key.
 
 This **revises** the original roadmap. Every prior phase-1 doc's "Next Step"
 section pointed at *local* LLM integration via Ollama
@@ -74,14 +74,16 @@ Exactly the lesson learned from `SourceConnector`
 into every call site. Define one `LLMProvider` interface
 (`app/llm/base.py`) — `generate(prompt, system=None) -> str` at minimum —
 and one implementation per provider (`AnthropicProvider`, `OpenAIProvider`,
-`GeminiProvider`, `GrokProvider`), selected by a factory keyed on a
+`GeminiProvider`, `GroqProvider`), selected by a factory keyed on a
 `provider` string, the same way `get_connector(dialect, ...)` already
 works for databases.
 
-Note: xAI's Grok API is OpenAI-SDK-compatible (same request/response
-shape, different base URL) — `GrokProvider` can likely reuse most of
-`OpenAIProvider`'s logic with a different `base_url` and model list, not a
-fully separate implementation.
+Note: Groq (the LPU-based inference company hosting open models like
+Llama — a different company from xAI's "Grok" model, easy to mix up given
+the near-identical name) has an OpenAI-SDK-compatible API (same
+request/response shape, different base URL) — `GroqProvider` reuses
+`OpenAIProvider`'s logic entirely with a different `base_url` and model,
+not a fully separate implementation.
 
 ## Bring-Your-Own-Key
 
@@ -137,7 +139,7 @@ app/
 │   ├── anthropic_provider.py
 │   ├── openai_provider.py
 │   ├── gemini_provider.py
-│   ├── grok_provider.py       # likely thin wrapper around OpenAIProvider
+│   ├── groq_provider.py       # thin wrapper around OpenAIProvider
 │   └── factory.py             # get_llm_provider(provider, api_key, model) -> LLMProvider
 ├── models/
 │   └── ai_provider_config.py  # AIProviderConfig (provider, encrypted api_key, default_model)
@@ -163,7 +165,7 @@ app/
 ```
 POST /ai/providers
 {
-  "provider": "anthropic",       // anthropic | openai | gemini | grok
+  "provider": "anthropic",       // anthropic | openai | gemini | groq
   "api_key": "sk-...",
   "default_model": "claude-..."  // optional, provider-specific
 }
@@ -213,7 +215,7 @@ POST /connections/{connection_id}/ask
 
 * `app/llm/base.py` — `LLMProvider` ABC
 * `app/llm/anthropic_provider.py`, `openai_provider.py`, `gemini_provider.py`,
-  `grok_provider.py`
+  `groq_provider.py`
 * `app/llm/factory.py` — `get_llm_provider(provider, api_key, model)`,
   rejects unsupported provider names clearly (same pattern as
   `app/connectors/factory.py`'s dialect check)
@@ -235,9 +237,10 @@ POST /connections/{connection_id}/ask
 
 ### Dependencies
 
-Add only the SDKs actually used: `anthropic`, `openai` (also covers Grok,
-being OpenAI-compatible), `google-generativeai`. Per AGENTS.md's existing
-rule, don't add any of these ahead of actually implementing that
+Add only the SDKs actually used: `anthropic`, `openai` (also covers Groq,
+being OpenAI-compatible), `google-genai` (the current SDK — the older
+`google-generativeai` package is fully deprecated). Per AGENTS.md's
+existing rule, don't add any of these ahead of actually implementing that
 provider's class.
 
 ---
@@ -261,7 +264,7 @@ generation, change detection, observability, multi-source connector
 abstraction, performance/correctness fixes, async job handling.
 
 Phase 2, Step 1: pluggable, bring-your-own-key LLM provider integration
-(Anthropic / OpenAI / Gemini / Grok), superseding the original local-Ollama
+(Anthropic / OpenAI / Gemini / Groq), superseding the original local-Ollama
 plan.
 
 ---

@@ -16,7 +16,7 @@ class AIProviderConfig(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    provider = Column(String, nullable=False, comment="anthropic, openai, gemini, or grok.")
+    provider = Column(String, nullable=False, comment="anthropic, openai, gemini, or groq.")
     api_key = Column(String, nullable=False)  # Fernet-encrypted at rest — see app/core/security.py.
     default_model = Column(String, nullable=True, comment="Provider-specific model name; falls back to that provider's own default if unset.")
 

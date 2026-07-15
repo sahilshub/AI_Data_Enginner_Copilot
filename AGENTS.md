@@ -115,7 +115,7 @@ Containerization
 AI
 
 * Hosted LLM providers, user's own API key (bring-your-own-key) — Anthropic,
-  OpenAI, Gemini, or Grok, user's choice. Revises the original local-Ollama
+  OpenAI, Gemini, or Groq, user's choice. Revises the original local-Ollama
   plan; see `docs/phase-2/step-1.md` for why and how.
 
 Embeddings
