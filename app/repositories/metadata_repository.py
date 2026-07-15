@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from app.models.schema_table import SchemaTable
 from app.models.schema_column import SchemaColumn
@@ -98,6 +98,27 @@ class MetadataRepository:
             .filter(SchemaColumn.table_id == table_id)
             .all()
         )
+
+    def get_columns_by_connection(self, connection_id: int) -> Dict[int, List[SchemaColumn]]:
+        """
+        Returns every stored column for every table in a connection, in one
+        query, grouped by table_id. Prefer this over calling
+        get_columns_by_table() per table when building context for many
+        tables at once (e.g. QAService's schema-context assembly) — same
+        N+1 concern as count_columns_by_connection(), just returning full
+        rows instead of a count.
+        """
+        rows = (
+            self.db.query(SchemaColumn)
+            .join(SchemaTable, SchemaColumn.table_id == SchemaTable.id)
+            .filter(SchemaTable.connection_id == connection_id)
+            .order_by(SchemaTable.table_name, SchemaColumn.id)
+            .all()
+        )
+        grouped: Dict[int, List[SchemaColumn]] = {}
+        for col in rows:
+            grouped.setdefault(col.table_id, []).append(col)
+        return grouped
 
     def count_columns_by_connection(self, connection_id: int) -> int:
         """
