@@ -14,10 +14,12 @@ ENV PYTHONUNBUFFERED=1
 # Set the working directory inside the container
 WORKDIR /workspace
 
-# Install system dependencies if any are needed (e.g., build tools, curl)
+# Install system dependencies if any are needed (e.g., build tools, curl).
+# curl is needed for this image's own HEALTHCHECK (see docker-compose.yml).
 # We keep this lightweight and clean up the apt cache to minimize image size.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy only the requirements file first to leverage Docker's cache layers
@@ -26,9 +28,13 @@ COPY requirements.txt .
 # Install dependencies into the system environment inside the container
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
-# Copy the rest of the application source code
+# Copy the rest of the application source code.
+# Deliberately NOT copying .env — secrets belong in environment variables
+# injected at container *runtime* (docker-compose.yml's env_file/environment),
+# never baked into an image layer where anyone with the image could extract
+# them (docker save, docker history, a pushed registry image). See
+# docs/phase-1/step-16.md.
 COPY app/ ./app/
-COPY .env .env
 
 # Create a non-privileged user to run the app for security best practices.
 # Running containers as root is a security risk in production environments.

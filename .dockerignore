@@ -1,0 +1,22 @@
+# Secrets — never let these enter the Docker build context
+.env
+.env.*
+!.env.example
+
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[oc]
+*.egg-info
+.venv
+
+# IDE
+.idea/
+
+# Docs and local-dev-only files not needed inside the image
+docs/
+nginx/
+*.md
